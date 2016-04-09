@@ -66,7 +66,9 @@ class SparkEnv (
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
-    val conf: SparkConf) extends Logging {
+    val conf: SparkConf,
+    val isDriver: Boolean
+               ) extends Logging {
 
   def serializer : Serializer = SerializationConstruction.serializer
   def closureSerializer : Serializer = SerializationConstruction.closureSerializer
@@ -384,7 +386,9 @@ object SparkEnv extends Logging {
       metricsSystem,
       memoryManager,
       outputCommitCoordinator,
-      conf)
+      conf,
+      isDriver
+    )
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is
     // called, and we only need to do it for driver. Because driver may run as a service, and if we
