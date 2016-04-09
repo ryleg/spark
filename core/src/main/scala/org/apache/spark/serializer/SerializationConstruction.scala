@@ -211,7 +211,10 @@ object SerializationConstruction extends EnvLockedSerCons {
 
   import SerializationSchema._
 
-  def isDriver = sparkEnv.isDriver
+  def isMultiClass(confI: SparkConf): Boolean = confI
+    .getBoolean("spark.multiclass.enabled", false)
+
+  def isDriver: Boolean = sparkEnv.isDriver
 
   def mkSerializer(
                     confSpec: String = "spark.serializer"

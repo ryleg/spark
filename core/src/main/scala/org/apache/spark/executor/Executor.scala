@@ -21,18 +21,19 @@ import java.io.{File, NotSerializableException}
 import java.lang.management.ManagementFactory
 import java.net.URL
 import java.nio.ByteBuffer
+import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.util.control.NonFatal
-
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.TaskMemoryManager
 import org.apache.spark.rpc.RpcTimeout
 import org.apache.spark.scheduler.{AccumulableInfo, DirectTaskResult, IndirectTaskResult, Task}
+import org.apache.spark.serializer.SerializationSchema.ClassPathDescription
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.storage.{StorageLevel, TaskResultBlockId}
 import org.apache.spark.util._
@@ -172,7 +173,9 @@ private[spark] class Executor(
       val taskId: Long,
       val attemptNumber: Int,
       taskName: String,
-      serializedTask: ByteBuffer)
+      serializedTask: ByteBuffer,
+      taskClassPathDescription: Option[ClassPathDescription] = None
+  )
     extends Runnable {
 
     /** Whether this task has been killed. */

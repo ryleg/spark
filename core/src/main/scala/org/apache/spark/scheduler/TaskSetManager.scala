@@ -27,11 +27,11 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.math.{max, min}
 import scala.util.control.NonFatal
-
 import org.apache.spark._
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.SchedulingMode._
 import org.apache.spark.TaskState.TaskState
+import org.apache.spark.serializer.{ClassLoaderUtil, SerializationConstruction, SerializationSchema}
 import org.apache.spark.util.{Clock, SystemClock, Utils}
 
 /**
@@ -484,8 +484,13 @@ private[spark] class TaskSetManager(
             s"$taskLocality, ${serializedTask.limit} bytes)")
 
           sched.dagScheduler.taskStarted(task, info)
+
+          val cpDescr = if (SerializationConstruction.isMultiClass(conf)) {
+            SerializationSchema.pathFromProperties(taskSet.properties)
+          } else None
+
           return Some(new TaskDescription(taskId = taskId, attemptNumber = attemptNum, execId,
-            taskName, index, serializedTask))
+            taskName, index, serializedTask, cpDescr))
         }
         case _ =>
       }
