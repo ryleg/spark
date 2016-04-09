@@ -21,15 +21,16 @@ import java.net.URL
 import java.util.Properties
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.{SparkConf, SparkEnv}
-import org.apache.spark.util.{ChildFirstURLClassLoader, Utils, MutableURLClassLoader}
+import org.apache.spark.serializer.SerializationSchema.{ClassPathDescription, TaskPackingRequirements}
+import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
+import org.apache.spark.util.{ChildFirstURLClassLoader, MutableURLClassLoader, Utils}
 
 
 trait ClassReflectInstHelp {
 
   val isDriver: Boolean
 
-  val conf : SparkConf
+  def conf : SparkConf
 
   // Create an instance of the class with the given name, possibly initializing it with our conf
   def instantiateClass[T](className: String): T = {
@@ -57,8 +58,55 @@ trait ClassReflectInstHelp {
     instantiateClass[T](conf.get(propertyName, defaultClassName))
   }
 
+}
+
+
+trait EnvLockedSerCons extends ClassReflectInstHelp {
+
+  var sparkEnv : SparkEnv
+  var sparkContext : SparkContext
+
+  def conf: SparkConf = sparkEnv.conf
+
+
+  import ClassLoaderUtil.constructClassLoader
+
+  private val activeTaskRequirements =
+    scala.collection.mutable.HashMap[
+      ClassPathDescription,
+      TaskPackingRequirements
+      ]()
+
+  /**
+    * Given requirements to form a ClassLoader on an Executor for
+    * loading tasks (i.e. the URL of the HTTP ClassServer for the REPL
+    * and the corresponding classpath of jars / task specific jars.
+    *
+    * @param k : Paths of classes to load
+    * @return Everything required to understand / decompose
+    *          tasks
+    */
+  private def getOrElseUpdateTaskRequirements(
+                                               k: ClassPathDescription
+                                             ): TaskPackingRequirements = {
+    activeTaskRequirements.getOrElseUpdate(k, {
+      val jarURL = k.jarPath.split("\\:").map{q => new java.net.URL(q)}
+      val cl = constructClassLoader(
+        sparkEnv,
+        jarURL,
+        k.replPath
+      )
+      TaskPackingRequirements(
+        cl,
+        makeTaskSerializers(cl)
+      )
+    })
+  }
+
 
 }
+
+
 
 object ClassLoaderUtil extends Logging {
 
@@ -156,5 +204,10 @@ object SerializationSchema {
 
 
 object SerializationConstruction {
+  def closureSerializer: Serializer = {}
+
+  def serializer: Serializer  = {
+
+  }
 
 }

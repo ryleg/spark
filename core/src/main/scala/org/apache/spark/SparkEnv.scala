@@ -22,9 +22,7 @@ import java.net.Socket
 
 import scala.collection.mutable
 import scala.util.Properties
-
 import com.google.common.collect.MapMaker
-
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
@@ -36,7 +34,7 @@ import org.apache.spark.network.netty.NettyBlockTransferService
 import org.apache.spark.rpc.{RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.{LiveListenerBus, OutputCommitCoordinator}
 import org.apache.spark.scheduler.OutputCommitCoordinator.OutputCommitCoordinatorEndpoint
-import org.apache.spark.serializer.{JavaSerializer, Serializer, SerializerManager}
+import org.apache.spark.serializer.{JavaSerializer, SerializationConstruction, Serializer, SerializerManager}
 import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.storage._
 import org.apache.spark.util.{RpcUtils, Utils}
@@ -55,8 +53,8 @@ import org.apache.spark.util.{RpcUtils, Utils}
 class SparkEnv (
     val executorId: String,
     private[spark] val rpcEnv: RpcEnv,
-    val serializer: Serializer,
-    val closureSerializer: Serializer,
+    val serializerDefault: Serializer,
+    val closureSerializerDefault: Serializer,
     val serializerManager: SerializerManager,
     val mapOutputTracker: MapOutputTracker,
     val shuffleManager: ShuffleManager,
@@ -69,6 +67,9 @@ class SparkEnv (
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
     val conf: SparkConf) extends Logging {
+
+  def serializer : Serializer = SerializationConstruction.serializer
+  def closureSerializer : Serializer = SerializationConstruction.closureSerializer
 
   private[spark] var isStopped = false
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()
