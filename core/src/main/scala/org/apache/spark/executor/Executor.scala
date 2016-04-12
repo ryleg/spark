@@ -33,6 +33,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.memory.TaskMemoryManager
 import org.apache.spark.rpc.RpcTimeout
 import org.apache.spark.scheduler.{AccumulableInfo, DirectTaskResult, IndirectTaskResult, Task}
+import org.apache.spark.serializer.SerializationConstruction
 import org.apache.spark.serializer.SerializationSchema.ClassPathDescription
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.storage.{StorageLevel, TaskResultBlockId}
@@ -139,9 +140,10 @@ private[spark] class Executor(
       taskId: Long,
       attemptNumber: Int,
       taskName: String,
-      serializedTask: ByteBuffer): Unit = {
+      serializedTask: ByteBuffer,
+      classPathDescription: Option[ClassPathDescription]): Unit = {
     val tr = new TaskRunner(context, taskId = taskId, attemptNumber = attemptNumber, taskName,
-      serializedTask)
+      serializedTask, classPathDescription)
     runningTasks.put(taskId, tr)
     threadPool.execute(tr)
   }
@@ -201,6 +203,9 @@ private[spark] class Executor(
     override def run(): Unit = {
       val taskMemoryManager = new TaskMemoryManager(env.memoryManager, taskId)
       val deserializeStartTime = System.currentTimeMillis()
+
+      val taskCPDeps = SerializationConstruction
+
       Thread.currentThread.setContextClassLoader(replClassLoader)
       val ser = env.closureSerializer.newInstance()
       logInfo(s"Running $taskName (TID $taskId)")

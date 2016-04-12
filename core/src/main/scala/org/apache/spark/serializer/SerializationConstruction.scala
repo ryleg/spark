@@ -22,7 +22,7 @@ import java.util.Properties
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.serializer.SerializationConstructor.TaskSerializers
-import org.apache.spark.serializer.SerializationSchema.{ClassPathDescription, TaskPackingRequirements}
+import org.apache.spark.serializer.SerializationSchema.{ClassPathDescription, TaskPackingRequirements, TaskSerializers}
 import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
 import org.apache.spark.util.{ChildFirstURLClassLoader, MutableURLClassLoader, Utils}
 
@@ -71,7 +71,7 @@ trait EnvLockedSerCons extends ClassReflectInstHelp {
 
   import ClassLoaderUtil.constructClassLoader
 
-  private val activeTaskRequirements =
+  val activeTaskRequirements =
     scala.collection.mutable.HashMap[
       ClassPathDescription,
       TaskPackingRequirements
@@ -86,7 +86,7 @@ trait EnvLockedSerCons extends ClassReflectInstHelp {
     * @return Everything required to understand / decompose
     *          tasks
     */
-  private def getOrElseUpdateTaskRequirements(
+  def getOrElseUpdateTaskRequirements(
                                                k: ClassPathDescription
                                              ): TaskPackingRequirements = {
     activeTaskRequirements.getOrElseUpdate(k, {
@@ -101,6 +101,37 @@ trait EnvLockedSerCons extends ClassReflectInstHelp {
         makeTaskSerializers(cl)
       )
     })
+  }
+
+
+
+  /**
+    * Bind the serializers to the given ClassLoader upon
+    * construction and return
+    *
+    * @param classLoader : From a given ClassServer URI / REPL /
+    *                    user initiated class execution request.
+    * @return Serializers required for task synchronization
+    *         across machines bound to given ClassLoader
+    */
+  def makeTaskSerializers(classLoader: ClassLoader): TaskSerializers = {
+    TaskSerializers(serializerBase.setDefaultClassLoader(classLoader).newInstance(),
+      closureSerializerBase.setDefaultClassLoader(classLoader).newInstance())
+  }
+
+  def serializerBase: Serializer = mkSerializer()
+
+  def closureSerializerBase: Serializer = mkSerializer(
+    confSpec = "org.apache.spark.serializer.JavaSerializer"
+  )
+
+  def mkSerializer(
+                    confSpec: String = "spark.serializer"
+                  ): Serializer = {
+    instantiateClassFromConf[Serializer](
+      confSpec,
+      "org.apache.spark.serializer.JavaSerializer"
+    )
   }
 
 
@@ -183,6 +214,8 @@ object SerializationSchema {
                                     )
 
   case class TaskSerializers(
+                              serializer: Serializer,
+                              closureSerializerBase: Serializer,
                               resultSerializer: SerializerInstance,
                               closureSerializer: SerializerInstance
                             )
@@ -210,29 +243,27 @@ object SerializationConstruction extends EnvLockedSerCons {
   var sc: SparkContext = null.asInstanceOf[SparkContext]
 
   import SerializationSchema._
+  import ClassLoaderUtil._
 
   def isMultiClass(confI: SparkConf): Boolean = confI
     .getBoolean("spark.multiclass.enabled", false)
 
   def isDriver: Boolean = sparkEnv.isDriver
 
-  def mkSerializer(
-                    confSpec: String = "spark.serializer"
-                  ): Serializer = {
-    instantiateClassFromConf[Serializer](
-      confSpec,
-      "org.apache.spark.serializer.JavaSerializer"
-    ).setDefaultClassLoader(getClassLoader)
+  private def getClassPathPropertiesForDriver = {
+    if (sc != null) {
+      pathFromProperties(sc.getLocalProperties)
+    } else None
   }
 
-  private def getClassPathProperties() = {
-    if (sc != null && isDriver) { // This is a double check that
-      // means we're the driver
-
-    }
+  // For SparkEnv / driver
+  private def getActiveTaskRequirements = {
+    getClassPathPropertiesForDriver
+      .map {getOrElseUpdateTaskRequirements}
   }
 
   private def getClassLoader: ClassLoader = {
+    if (sc != null) {
     sc.flatMap{
       s =>
         val path = pathFromProperties(s.getLocalProperties)
@@ -242,26 +273,15 @@ object SerializationConstruction extends EnvLockedSerCons {
     }.getOrElse(
       baseCL
     )
-  }
+  } else baseCL
 
-  /**
-    * Bind the serializers to the given ClassLoader upon
-    * construction and return
-    *
-    * @param classLoader : From a given ClassServer URI / REPL /
-    *                    user initiated class execution request.
-    * @return Serializers required for task synchronization
-    *         across machines bound to given ClassLoader
-    */
-  private def makeTaskSerializers(classLoader: ClassLoader): TaskSerializers = {
-    TaskSerializers(serializer.setDefaultClassLoader(classLoader).newInstance(),
-      closureSerializer.setDefaultClassLoader(classLoader).newInstance())
-  }
-
+  // For SparkEnv
   def closureSerializer: Serializer = {
-
+    getActiveTaskRequirements.map{_.taskSerializers.closureSerializerBase}
+      .getOrElse(closureSerializerBase.setDefaultClassLoader())
   }
 
+  // For SparkEnv
   def serializer: Serializer  = {
 
   }
