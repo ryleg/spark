@@ -20,10 +20,9 @@ package org.apache.spark.serializer
 import java.net.URL
 import java.util.Properties
 
-import org.apache.spark.internal.Logging
-import org.apache.spark.serializer.SerializationConstructor.TaskSerializers
-import org.apache.spark.serializer.SerializationSchema.{ClassPathDescription, TaskPackingRequirements, TaskSerializers}
 import org.apache.spark.{SparkConf, SparkContext, SparkEnv}
+import org.apache.spark.internal.Logging
+import org.apache.spark.serializer.SerializationSchema.{ClassPathDescription, TaskPackingRequirements, TaskSerializers}
 import org.apache.spark.util.{ChildFirstURLClassLoader, MutableURLClassLoader, Utils}
 
 
@@ -65,7 +64,7 @@ trait ClassReflectInstHelp {
 trait EnvLockedSerCons extends ClassReflectInstHelp {
 
   var sparkEnv : SparkEnv
-  var sparkContext : SparkContext
+  var sc : SparkContext
 
   def conf: SparkConf = sparkEnv.conf
 
@@ -115,8 +114,14 @@ trait EnvLockedSerCons extends ClassReflectInstHelp {
     *         across machines bound to given ClassLoader
     */
   def makeTaskSerializers(classLoader: ClassLoader): TaskSerializers = {
-    TaskSerializers(serializerBase.setDefaultClassLoader(classLoader).newInstance(),
-      closureSerializerBase.setDefaultClassLoader(classLoader).newInstance())
+    val serB = serializerBase.setDefaultClassLoader(classLoader)
+    val cserB = closureSerializerBase.setDefaultClassLoader(classLoader)
+    TaskSerializers(
+      serB,
+      cserB,
+      serB.newInstance(),
+      cserB.newInstance()
+    )
   }
 
   def serializerBase: Serializer = mkSerializer()
@@ -214,9 +219,9 @@ object SerializationSchema {
                                     )
 
   case class TaskSerializers(
-                              serializer: Serializer,
+                              serializerBase: Serializer,
                               closureSerializerBase: Serializer,
-                              resultSerializer: SerializerInstance,
+                              serializer: SerializerInstance,
                               closureSerializer: SerializerInstance
                             )
 
@@ -263,27 +268,22 @@ object SerializationConstruction extends EnvLockedSerCons {
   }
 
   private def getClassLoader: ClassLoader = {
-    if (sc != null) {
-    sc.flatMap{
-      s =>
-        val path = pathFromProperties(s.getLocalProperties)
-        path
-          .map{getOrElseUpdateTaskRequirements}
-          .map{_.classLoader}
-    }.getOrElse(
-      baseCL
-    )
-  } else baseCL
+    getClassPathPropertiesForDriver
+      .map {getOrElseUpdateTaskRequirements}
+      .map {_.classLoader}
+      .getOrElse(baseCL)
+  }
 
   // For SparkEnv
   def closureSerializer: Serializer = {
     getActiveTaskRequirements.map{_.taskSerializers.closureSerializerBase}
-      .getOrElse(closureSerializerBase.setDefaultClassLoader())
+      .getOrElse(closureSerializerBase.setDefaultClassLoader(baseCL))
   }
 
   // For SparkEnv
-  def serializer: Serializer  = {
-
+  def serializer: Serializer = {
+    getActiveTaskRequirements.map{_.taskSerializers.serializerBase}
+      .getOrElse(serializerBase.setDefaultClassLoader(baseCL))
   }
 
 }

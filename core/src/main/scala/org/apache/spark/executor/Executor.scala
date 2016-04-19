@@ -204,10 +204,15 @@ private[spark] class Executor(
       val taskMemoryManager = new TaskMemoryManager(env.memoryManager, taskId)
       val deserializeStartTime = System.currentTimeMillis()
 
-      val taskCPDeps = SerializationConstruction
+      val taskCPDeps = taskClassPathDescription.map{
+        SerializationConstruction.getOrElseUpdateTaskRequirements
+        }
 
-      Thread.currentThread.setContextClassLoader(replClassLoader)
-      val ser = env.closureSerializer.newInstance()
+      Thread.currentThread.setContextClassLoader(
+        taskCPDeps.map{_.classLoader}.getOrElse(replClassLoader)
+        )
+      val ser = taskCPDeps.map { _.taskSerializers.closureSerializer
+      }.getOrElse(env.closureSerializer.newInstance())
       logInfo(s"Running $taskName (TID $taskId)")
       execBackend.statusUpdate(taskId, TaskState.RUNNING, EMPTY_BYTE_BUFFER)
       var taskStart: Long = 0
@@ -273,7 +278,8 @@ private[spark] class Executor(
           throw new TaskKilledException
         }
 
-        val resultSer = env.serializer.newInstance()
+        val resultSer = taskCPDeps.map{_.taskSerializers.serializer
+        }.getOrElse(env.serializer.newInstance())
         val beforeSerialization = System.currentTimeMillis()
         val valueBytes = resultSer.serialize(value)
         val afterSerialization = System.currentTimeMillis()
