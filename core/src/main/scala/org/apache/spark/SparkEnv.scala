@@ -70,6 +70,8 @@ class SparkEnv (
     val isDriver: Boolean
                ) extends Logging {
 
+  SerializationConstruction.sparkEnv = this
+
   def serializer : Serializer = SerializationConstruction.serializer
   def closureSerializer : Serializer = SerializationConstruction.closureSerializer
 
