@@ -37,6 +37,17 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+  <distributionManagement>
+    <repository>
+      <id>spark</id>
+      <url>https://api.bintray.com/maven/ryleg/maven-repo/spark/;publish=1</url>
+    </repository>
+  </distributionManagement>
+  <server>
+    <id>spark</id>
+    <username>ryleg</username>
+    <password>apikey</password>
+  </server>
   <scm>
     <connection>scm:git:git@github.com:apache/spark.git</connection>
     <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/spark.git</developerConnection>
