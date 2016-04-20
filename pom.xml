@@ -230,7 +230,7 @@
       <id>central</id>
       <url>https://repo1.maven.org/maven2</url>
       <releases>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
       </releases>
       <snapshots>
         <enabled>false</enabled>
