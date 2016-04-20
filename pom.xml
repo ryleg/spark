@@ -24,8 +24,8 @@
     <artifactId>apache</artifactId>
     <version>14</version>
   </parent>
-  <groupId>org.apache.spark</groupId>
-  <artifactId>spark-parent_2.11</artifactId>
+  <groupId>spark</groupId>
+  <artifactId>spark-multiclass_2.11</artifactId>
   <version>2.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
@@ -44,9 +44,9 @@
     </repository>
   </distributionManagement>
   <scm>
-    <connection>scm:git:git@github.com:apache/spark.git</connection>
+    <connection>scm:git:git@github.com:ryleg/spark.git</connection>
     <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/spark.git</developerConnection>
-    <url>scm:git:git@github.com:apache/spark.git</url>
+    <url>scm:git:git@github.com:ryleg/spark.git</url>
     <tag>HEAD</tag>
   </scm>
   <developers>
@@ -230,7 +230,7 @@
       <id>central</id>
       <url>https://repo1.maven.org/maven2</url>
       <releases>
-        <enabled>true</enabled>
+        <enabled>false</enabled>
       </releases>
       <snapshots>
         <enabled>false</enabled>
